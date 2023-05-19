@@ -40,8 +40,22 @@ if ( ! comments_open() ) {
 		</h2>
 
 		<?php if ( have_comments() ) : ?>
+			<?php
+			$comments = array();
+			$product_ids = apply_filters( 'woocommerce_product_review_list_product_ids', array( $product->get_id() ),$product );
+			foreach( $product_ids as $product_id ){
+				$comments += get_comments( 
+					array(
+						'post_id' => $product_id,
+						'hierarchical ' => true,
+						'status' => 'approve'
+					)
+				);
+			}
+
+			?>
 			<ol class="commentlist">
-				<?php wp_list_comments( apply_filters( 'woocommerce_product_review_list_args', array( 'callback' => 'woocommerce_comments' ) ) ); ?>
+				<?php wp_list_comments( apply_filters( 'woocommerce_product_review_list_args', array( 'callback' => 'woocommerce_comments' ) ),$comments ); ?>
 			</ol>
 
 			<?php

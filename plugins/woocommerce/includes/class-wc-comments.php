@@ -339,11 +339,10 @@ class WC_Comments {
 	 * @param WC_Product $product Product instance.
 	 * @return float
 	 */
-	public static function get_average_rating_for_product( &$product ) {
+	public static function get_average_rating_for_product_ids( $product_ids, $count ) {
 		global $wpdb;
 
-		$count = $product->get_rating_count();
-
+		$product_id_string_placeholder = substr( str_repeat( ',%s', count( $product_ids ) ), 1 );
 		if ( $count ) {
 			$ratings = $wpdb->get_var(
 				$wpdb->prepare(
@@ -351,17 +350,38 @@ class WC_Comments {
 				SELECT SUM(meta_value) FROM $wpdb->commentmeta
 				LEFT JOIN $wpdb->comments ON $wpdb->commentmeta.comment_id = $wpdb->comments.comment_ID
 				WHERE meta_key = 'rating'
-				AND comment_post_ID = %d
+				AND comment_post_ID IN ( $product_id_string_placeholder )
 				AND comment_approved = '1'
 				AND meta_value > 0
 					",
-					$product->get_id()
+					$product_ids
 				)
 			);
 			$average = number_format( $ratings / $count, 2, '.', '' );
 		} else {
 			$average = 0;
 		}
+
+		return $average;
+	}
+	
+	/**
+	 * Get product review count for a product (not replies). Please note this is not cached.
+	 *
+	 * @since 3.0.0
+	 * @param WC_Product $product Product instance.
+	 * @return int
+	 */
+	public static function get_average_rating_for_product( &$product ) {
+		$average = self::get_average_rating_for_product_ids( 
+			apply_filters(
+				'woocommerce_product_get_average_rating_for_product',
+				array( 
+					$product->get_id()
+				),
+				$product ),
+			$product->get_rating_count()
+		 );
 
 		return $average;
 	}
@@ -417,9 +437,17 @@ class WC_Comments {
 	 * @return int
 	 */
 	public static function get_review_count_for_product( &$product ) {
-		$counts = self::get_review_counts_for_product_ids( array( $product->get_id() ) );
 
-		return $counts[ $product->get_id() ];
+		$counts = self::get_review_counts_for_product_ids( 
+			apply_filters(
+				'woocommerce_product_get_review_count_for_product',
+				array( 
+					$product->get_id()
+				),
+				$product )
+		 );
+
+		return array_sum($counts);
 	}
 
 	/**
@@ -429,28 +457,49 @@ class WC_Comments {
 	 * @param WC_Product $product Product instance.
 	 * @return int[]
 	 */
-	public static function get_rating_counts_for_product( &$product ) {
+	public static function get_rating_counts_for_product_ids( $product_ids ) {
 		global $wpdb;
 
 		$counts     = array();
+		$product_id_string_placeholder = substr( str_repeat( ',%s', count( $product_ids ) ), 1 );
 		$raw_counts = $wpdb->get_results(
 			$wpdb->prepare(
 				"
 			SELECT meta_value, COUNT( * ) as meta_value_count FROM $wpdb->commentmeta
 			LEFT JOIN $wpdb->comments ON $wpdb->commentmeta.comment_id = $wpdb->comments.comment_ID
 			WHERE meta_key = 'rating'
-			AND comment_post_ID = %d
+			AND comment_post_ID IN( $product_id_string_placeholder )
 			AND comment_approved = '1'
 			AND meta_value > 0
 			GROUP BY meta_value
 				",
-				$product->get_id()
+				$product_ids
 			)
 		);
-
 		foreach ( $raw_counts as $count ) {
 			$counts[ $count->meta_value ] = absint( $count->meta_value_count ); // WPCS: slow query ok.
 		}
+
+		return $counts;
+	}
+		
+	/**
+	 * Get product review count for a product (not replies). Please note this is not cached.
+	 *
+	 * @since 3.0.0
+	 * @param WC_Product $product Product instance.
+	 * @return int
+	 */
+	public static function get_rating_counts_for_product( &$product ) {
+
+		$counts = self::get_rating_counts_for_product_ids( 
+			apply_filters(
+				'woocommerce_product_get_rating_counts_for_product',
+				array( 
+					$product->get_id()
+				),
+				$product )
+		 );
 
 		return $counts;
 	}
